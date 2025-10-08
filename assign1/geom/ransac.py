@@ -1,7 +1,7 @@
 import numpy as np
 from geom.dlt import dlt_homography, reprojection_errors
 
-def ransac_homography(pts1, pts2, iters=2000, thresh=3.0, seed=0):
+def ransac_homography(pts1, pts2, iters=2000, thresh=0.0001, seed=0):
     """
     RANSAC to robustly estimate homography.
 
@@ -37,4 +37,38 @@ def ransac_homography(pts1, pts2, iters=2000, thresh=3.0, seed=0):
     # - If no valid model, return (None, zeros(N)).
     # - Else refit H on best inliers (DLT) and return.
     #############################
-    raise NotImplementedError
+    for _ in range(iters):
+        #1) 최소 표본 4점 무작위 선택
+        idx = rng.choice(N, size=4, replace=False)
+
+        #2) DLT로 모델 추정
+        try:
+            Hc = dlt_homography(pts1[idx], pts2[idx], use_normalization=True)
+        except Exception:
+            continue
+
+        #3) 전체data에 대해 reproj_Error 계산
+        errs = reprojection_errors(Hc, pts1, pts2)
+        inliers = errs < thresh
+        score = int(inliers.sum())
+        
+        if score > best_score:
+            best_score = score
+            best_H = Hc
+            best_inliers = inliers
+
+    #if non valid
+    if best_H is None or best_inliers is None or best_score < 4:
+        return None, np.zeros(N, dtype=bool)
+
+    #refit
+    inl_idx = np.where(best_inliers)[0]
+    try:
+        H_refit = dlt_homography(pts1[inl_idx], pts2[inl_idx], use_normalization=True)
+    except Exception:
+        H_refit = best_H
+
+    #final inlier update
+    final_inliers = reprojection_errors(H_refit, pts1, pts2) < thresh
+
+    return H_refit, final_inliers

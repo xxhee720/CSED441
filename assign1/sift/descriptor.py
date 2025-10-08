@@ -45,7 +45,31 @@ def sift_descriptor(gauss_pyr, kpt, theta: float,
     # - For each cell, aggregate a simple orientation histogram from its pixels.
     # - Hard-assign angles to bins; weights from gradient magnitudes.
     #############################
-    raise NotImplementedError
+    
+    y_edges = np.linspace(0,m.shape[0],cell+1,dtype=int)
+    x_edges = np.linspace(0,m.shape[1],cell+1,dtype=int)
+
+    for cy in range(cell):
+        ys, ye = y_edges[cy], y_edges[cy + 1]
+        if ye <= ys: 
+            continue
+        for cx in range(cell):
+            xs, xe = x_edges[cx], x_edges[cx + 1]
+            if xe <= xs:
+                continue
+
+            m_cell = m[ys:ye, xs:xe] # Extract subregion
+            a_cell = a[ys:ye, xs:xe]
+
+            if m_cell.size==0:
+                continue
+
+            bin_f = (a_cell * bins) / (2 * np.pi) # Compute histogram indices for each pixel
+            b = np.floor(bin_f).astype(int) % bins
+            h = np.zeros(bins, dtype=np.float64)# Accumulate weighted votes
+            np.add.at(h, b.ravel(), m_cell.ravel())
+
+            desc[cy,cx,:] = h
 
     #############################
     ######### Implement here ####
@@ -53,4 +77,12 @@ def sift_descriptor(gauss_pyr, kpt, theta: float,
     # - Flatten to 128-D and L2-normalize.
     # - (Optional) small clipping before renormalization if you want textbook SIFT.
     #############################
-    raise NotImplementedError
+    vec = desc.ravel().astype(np.float64)
+    n = np.linalg.norm(vec) + 1e-12 #first L2 normalization
+
+    vec /= n
+    
+    vec = np.clip(vec, 0.0, 0.2) #clipping
+    vec /= (np.linalg.norm(vec) + 1e-12)#renormalization
+
+    return vec.astype(np.float32)

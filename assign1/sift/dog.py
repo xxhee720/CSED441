@@ -25,7 +25,33 @@ def build_gaussian_pyramid(gray: np.ndarray, sigma0: float = 1.6,
     # - Next levels use incremental blur (level-to-level).
     # - Next octave base = previous octave's mid-level downsampled by 2.
     #############################
-    raise NotImplementedError
+    img = gray.astype(np.float64, copy=False) #Convert input image to double precision
+    k = 2.0 ** (1.0 / float(scales)) # Scale factor
+    pyr = []
+
+    base = img #init base image
+
+    for o in range(octaves):
+        sigmas_abs = [sigma0 * (k ** s) for s in range(scales + 3)] # Compute absolute sigma values
+        levels = []
+
+        # level 0: apply gaussian blur w/ base simga
+        l0 = gaussian_blur(base, sigmas_abs[0])
+        levels.append(l0)
+
+        # other levels: apply incremental blur
+        prev_abs = sigmas_abs[0]
+        for s in range(1, scales + 3):
+            sigma_inc = np.sqrt(max(sigmas_abs[s]**2 - prev_abs**2, 1e-12))
+            li = gaussian_blur(levels[-1], sigma_inc)
+            levels.append(li)
+            prev_abs = sigmas_abs[s]
+
+        pyr.append(levels) # store all images
+
+        base = levels[scales][::2, ::2] # Next octave base = previous octave's mid-level downsampled by 2.
+
+    return pyr
 
 
 def build_dog_pyramid(gauss_pyr):

@@ -24,10 +24,17 @@ def gaussian_kernel_1d(sigma: float, radius: int | None = None) -> np.ndarray:
     #############################
     ######### Implement here ####
     # Hint: build symmetric 1-D Gaussian samples and normalize to sum=1.
-    #############################
-    raise NotImplementedError
-
-
+    if radius is None:
+        radius = int(3 * sigma + 0.5)
+    x = np.arange(-radius, radius+1)
+    # Gaussian
+    k = np.exp(-(x**2) / (2 * sigma**2))
+    # L1 norm to sum=1
+    k /= np.sum(k)
+    
+    return k
+    #############################    
+    
 def separable_conv2d(img: np.ndarray, k: np.ndarray) -> np.ndarray:
     """
     Separable 2-D convolution with 1-D kernel k (horizontal then vertical).
@@ -99,5 +106,22 @@ def image_gradients(gray: np.ndarray, sigma: float = 1.0):
     #   along the other axis (separable idea).
     # - Build a small 1-D derivative kernel (no Sobel).
     # - Produce Ix and Iy consistent with DoG from the slides.
+
+    if sigma is not None and sigma>0: # If sigma is provided, apply Gaussian smoothing first.
+        k=gaussian_kernel_1d(sigma)
+        sm=separable_conv2d(g,k)
+    else:
+        sm=g
+
+    def prod_Ix(img): # Compute horizontal gradient using central differences.
+        p=np.pad(img,((0,0),(1,1)),mode="reflect")
+        return 0.5*(p[:,2:]-p[:,:-2])
+    def prod_Iy(img): # Similar to Ix
+        p=np.pad(img,((1, 1),(0, 0)), mode="reflect")
+        return 0.5*(p[2:,:]-p[:-2,:])
+    
+    Ix = prod_Ix(sm) #Produce Ix and Iy consistent
+    Iy = prod_Iy(sm)
+    
+    return Ix, Iy
     #############################
-    raise NotImplementedError

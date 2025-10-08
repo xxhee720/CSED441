@@ -49,7 +49,55 @@ def dlt_homography(pts1, pts2, use_normalization=False):
     # - Reshape to Hn (3x3). De-normalize: H = T2^{-1} @ Hn @ T1.
     # - Scale so that H[2,2] ~ 1 (if possible).
     #############################
-    raise NotImplementedError
+    if use_normalization: #Normalize points (if requested)
+        T1, n1 = normalize_points(pts1)
+        T2, n2 = normalize_points(pts2)
+    else:
+        T1 = np.eye(3, dtype=np.float64)
+        T2 = np.eye(3, dtype=np.float64)
+        n1 = np.asarray(pts1,dtype=np.float64)
+        n2 = np.asarray(pts2,dtype=np.float64)
+
+    N = n1.shape[0]
+    A = np.zeros((2 * N, 9), dtype=np.float64) #Construct DLT design matrix A
+    u, v = n1[:,0], n1[:, 1]
+    up, vp = n2[:, 0], n2[:, 1]
+
+    # Each correspondence contributes two equations
+    # [ -u  -v  -1   0   0   0   u*up  v*up  up ]
+    A[0::2, 0] = -u
+    A[0::2, 1] = -v
+    A[0::2, 2] = -1.0
+    A[0::2, 6] =  u * up
+    A[0::2, 7] =  v * up
+    A[0::2, 8] =  up
+
+    # [  0   0   0  -u  -v  -1   u*vp  v*vp  vp ]
+    A[1::2, 3] = -u
+    A[1::2, 4] = -v
+    A[1::2, 5] = -1.0
+    A[1::2, 6] =  u * vp
+    A[1::2, 7] =  v * vp
+    A[1::2, 8] =  vp
+
+    #Solve Ah = 0 using SVD
+    _, _, Vt = np.linalg.svd(A)
+    h = Vt[-1, :] 
+    Hn = h.reshape(3, 3)
+
+    #De-normalize the homography
+    H = np.linalg.inv(T2) @ Hn @ T1
+
+    #fix scale
+    if abs(H[2, 2]) > 1e-12:
+        H = H / H[2, 2]
+    else:
+        norm = np.linalg.norm(H)
+        if norm > 0:
+            H = H / norm
+
+    return H
+
 
 
 def reprojection_errors(H, pts1, pts2):

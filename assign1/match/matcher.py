@@ -28,7 +28,28 @@ def match_l2_crosscheck(descA, descB):
     # - Find NN indices for A->B and B->A.
     # - Keep pairs that are mutual AND return their distances.
     #############################
-    raise NotImplementedError
+    #Stack descriptor arrays
+    A = np.stack(descA).astype(np.float64, copy=False)  #(NA,D)
+    B = np.stack(descB).astype(np.float64, copy=False)  #(NB,D)
+
+    #Compute squared Euclidean distances
+    AA = (A * A).sum(axis=1)[:, None]   #(NA,1)
+    BB = (B * B).sum(axis=1)[None, :]     #(1,NB)
+    D2 = AA + BB - 2.0 * (A @ B.T)
+    D2 = np.maximum(D2, 0.0) # avoid small neg value
+
+    #find nearest neighbor 
+    nnAB = np.argmin(D2, axis=1)
+    nnBA = np.argmin(D2, axis=0)
+
+    #keep only mutual nearest neighbors (crosscheck)
+    matches = []
+    for i, j in enumerate(nnAB):
+        if nnBA[j] == i:
+            dist = float(np.sqrt(D2[i, j]))
+            matches.append((i, j, dist))
+
+    return matches
 
 
 # (Optional) Lowe ratio — often used with SIFT; you may keep it provided.

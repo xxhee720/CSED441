@@ -39,4 +39,57 @@ def orientation_assignment(gauss_pyr, kpt, num_bins: int = 36, peak_rel: float =
     # - Build a histogram over [0, 2π) with 'num_bins' bins using window magnitudes.
     # - Select all bin centers whose height ≥ peak_rel * (global max).
     #############################
-    raise NotImplementedError
+    
+    #1. normalize angles to [0, 2π)
+    a=(a + 2*np.pi) % (2*np.pi)
+
+    #2. build an orientation histogram with 'num_bins'
+    nb = num_bins
+    hist = np.zeros(nb, dtype=np.float64)
+
+    # Compute fractional bin positions
+    bin_f = (a * nb) / (2*np.pi)
+    b0 = np.floor(bin_f).astype(int) % nb
+    w1 = bin_f - np.floor(bin_f)
+    b1 = (b0 + 1) % nb
+
+    # Distribute magnitudes between neighboring bins
+    np.add.at(hist, b0, m * (1.0 - w1))
+    np.add.at(hist, b1, m * w1)
+
+    # 3)smooth the histogram
+    hist = np.convolve(hist, [1, 1, 1], mode='same')
+
+    # 4)Find all peaks above the relative threshold
+    peak = hist.max()
+    if peak <= 0:
+        return [0.0]
+
+    th = peak_rel * peak
+    orientations = []
+    for i in range(nb):
+        li = hist[(i - 1) % nb]
+        ci = hist[i]
+        ri = hist[(i + 1) % nb]
+        
+        
+        if ci >= th and ci > li and ci > ri:
+            #5)refinement using parabolic interpolation
+            denom = (li - 2*ci + ri)
+            if abs(denom) < 1e-12: offset = 0.0
+            else: offset = 0.5 * (li - ri)/denom
+            
+            bin_pos = (i + offset) % nb
+            angle = (bin_pos/nb) * 2*np.pi
+            #Convert angle to range [-π, π)
+            angle = (angle + np.pi)%(2*np.pi)-np.pi
+            orientations.append(float(angle))
+
+    # if no valid orientation found
+    if not orientations:
+        imax = int(np.argmax(hist))
+        angle = (imax/nb)*2*np.pi
+        angle = (angle+np.pi)%(2*np.pi)-np.pi
+        orientations.append(float(angle))
+
+    return orientations
